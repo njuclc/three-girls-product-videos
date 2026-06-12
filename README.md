@@ -1,36 +1,96 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Product color video config
 
-## Getting Started
+An internal tool (Next.js, deployable on Vercel) for configuring the demo video
+that plays when a shopper clicks each fabric color on a Shopify product.
 
-First, run the development server:
+It does three things:
+
+1. **Search products** in your Shopify store.
+2. **Show a product's fabric colors** — parsed from the storefront product page
+   `<script data-free-swatch-variants="json">`, with automatic fallback to the
+   `custom.free_swatch` metafield (so it works even on password-protected dev
+   stores).
+3. **Upload a video per color** to Shopify Files and save the result into the
+   product's `custom.color_videos` JSON metafield.
+
+Unlike a Shopify embedded app, this needs **no Partner app, no OAuth and no
+tunnel** — it talks to the Admin API with a custom-app access token.
+
+## 1. Create a Shopify Admin API token
+
+In your store admin: **Settings → Apps and sales channels → Develop apps →
+Create an app**. Under **Configuration → Admin API integration**, grant:
+
+- `read_products`, `write_products`
+- `read_files`, `write_files`
+
+**Install** the app, then reveal the **Admin API access token** (`shpat_...`).
+
+## 2. Configure environment
+
+Copy `.env.example` to `.env.local` and fill in:
+
+| Variable | Description |
+| --- | --- |
+| `SHOPIFY_STORE_DOMAIN` | e.g. `three-girls-develop.myshopify.com` |
+| `SHOPIFY_ADMIN_TOKEN` | the `shpat_...` token |
+| `SHOPIFY_API_VERSION` | e.g. `2025-10` |
+| `APP_PASSWORD` | password that gates this tool (leave empty only for local dev) |
+
+## 3. Run locally
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+# open http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 4. Deploy to Vercel
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm i -g vercel   # if needed
+vercel            # link/create the project
+vercel --prod
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Set the four environment variables in **Vercel → Project → Settings →
+Environment Variables** (same names as above). Redeploy.
 
-## Learn More
+## How video upload works (and why)
 
-To learn more about Next.js, take a look at the following resources:
+Vercel serverless functions cap request bodies at ~4.5 MB, so the video bytes
+**never pass through the server**:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+1. Browser → `POST /api/upload/stage` → server calls `stagedUploadsCreate` and
+   returns a Shopify staged upload target.
+2. Browser uploads the file **directly** to that target.
+3. Browser → `POST /api/upload/register` → server calls `fileCreate` and writes
+   the entry into the `custom.color_videos` metafield.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Shopify transcodes videos asynchronously, so a freshly uploaded video shows as
+`PROCESSING` until you click **Refresh status** (which fills in the playable
+CDN URL).
 
-## Deploy on Vercel
+## The metafield it writes — `custom.color_videos` (type `json`)
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```json
+{
+  "version": 1,
+  "colors": {
+    "Linen White": {
+      "variantId": 123456789,
+      "videos": [
+        {
+          "fileId": "gid://shopify/Video/123",
+          "url": "https://cdn.shopify.com/videos/.../file.mp4",
+          "filename": "white.mp4",
+          "status": "READY"
+        }
+      ]
+    }
+  }
+}
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Your theme reads this keyed by color name (`public_title`) to swap the `<video>`
+when a swatch is clicked.
