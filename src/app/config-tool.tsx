@@ -200,11 +200,35 @@ export default function ConfigTool() {
     window.location.reload();
   }
 
-  const hasPending =
+  // A video is still "pending" while it transcodes (anything that is not yet a
+  // playable READY entry), but FAILED is terminal — it never becomes ready, so
+  // it must not keep the refresh button / auto-poll alive forever.
+  const hasPending = Boolean(
     data &&
-    Object.values(data.videoMap.colors).some((c) =>
-      c.videos.some((v) => v.status !== "READY" || !v.url),
-    );
+      Object.values(data.videoMap.colors).some((c) =>
+        c.videos.some(
+          (v) => v.status !== "FAILED" && (v.status !== "READY" || !v.url),
+        ),
+      ),
+  );
+
+  // Auto-poll Shopify for transcoding status while anything is still pending,
+  // so a freshly uploaded video fills in its status / URL without a manual click.
+  const refreshRef = useRef(refreshStatus);
+  refreshRef.current = refreshStatus;
+  useEffect(() => {
+    if (!hasPending) return;
+    let polls = 0;
+    const id = setInterval(() => {
+      polls += 1;
+      if (polls > 60) {
+        clearInterval(id);
+        return;
+      }
+      refreshRef.current();
+    }, 5000);
+    return () => clearInterval(id);
+  }, [hasPending]);
 
   return (
     <main className="layout">
