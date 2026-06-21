@@ -35,6 +35,14 @@ interface ProductData {
 
 type UploadState = Record<string, { busy: boolean; message: string }>;
 
+/**
+ * Reserved color key for the product-level default / fallback video list.
+ * It is stored in the same `custom.color_videos` metafield as a pseudo-color,
+ * so all upload / remove / refresh plumbing works unchanged and the storefront
+ * can fall back to it when a real color has no video of its own.
+ */
+const DEFAULT_VIDEO_KEY = "__default__";
+
 /* ---------- Component ---------- */
 
 export default function ConfigTool() {
@@ -283,84 +291,128 @@ export default function ConfigTool() {
                 </div>
               )}
 
+              <div className="colors-head">
+                <h3>Default video</h3>
+                {hasPending && (
+                  <button onClick={refreshStatus} disabled={refreshing}>
+                    {refreshing ? "Refreshing…" : "Refresh status"}
+                  </button>
+                )}
+              </div>
+              <p className="muted">
+                Shown when a color has no video of its own.
+              </p>
+              <div className="colors">
+                <VideoSection
+                  title="Default"
+                  imageSrc={null}
+                  videos={
+                    data.videoMap.colors[DEFAULT_VIDEO_KEY]?.videos ?? []
+                  }
+                  state={upload[DEFAULT_VIDEO_KEY]}
+                  onPick={(file) =>
+                    uploadVideo(
+                      {
+                        variantId: null,
+                        publicTitle: DEFAULT_VIDEO_KEY,
+                        imageSrc: null,
+                      },
+                      file,
+                    )
+                  }
+                  onRemove={(fileId) => removeVideo(DEFAULT_VIDEO_KEY, fileId)}
+                />
+              </div>
+
               {data.colors.length > 0 && (
                 <div className="colors-head">
                   <h3>Colors ({data.colors.length})</h3>
-                  {hasPending && (
-                    <button onClick={refreshStatus} disabled={refreshing}>
-                      {refreshing ? "Refreshing…" : "Refresh status"}
-                    </button>
-                  )}
                 </div>
               )}
 
               <div className="colors">
-                {data.colors.map((color) => {
-                  const videos =
-                    data.videoMap.colors[color.publicTitle]?.videos ?? [];
-                  const state = upload[color.publicTitle];
-                  return (
-                    <div className="color-row" key={color.publicTitle}>
-                      <div className="color-head">
-                        {color.imageSrc ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={color.imageSrc} alt="" className="thumb" />
-                        ) : (
-                          <span className="thumb placeholder" />
-                        )}
-                        <strong>{color.publicTitle}</strong>
-                        <span
-                          className={
-                            "badge " + (videos.length ? "ok" : "empty")
-                          }
-                        >
-                          {videos.length
-                            ? `${videos.length} video(s)`
-                            : "No video"}
-                        </span>
-                      </div>
-
-                      {videos.length > 0 && (
-                        <ul className="video-list">
-                          {videos.map((v) => (
-                            <li key={v.fileId}>
-                              <span className={"badge " + statusClass(v.status)}>
-                                {v.status}
-                              </span>
-                              {v.url ? (
-                                <a href={v.url} target="_blank" rel="noreferrer">
-                                  {v.filename}
-                                </a>
-                              ) : (
-                                <span>{v.filename} (processing…)</span>
-                              )}
-                              <button
-                                className="link danger"
-                                onClick={() =>
-                                  removeVideo(color.publicTitle, v.fileId)
-                                }
-                              >
-                                Remove
-                              </button>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-
-                      <UploadControl
-                        busy={state?.busy ?? false}
-                        message={state?.message ?? ""}
-                        onPick={(file) => uploadVideo(color, file)}
-                      />
-                    </div>
-                  );
-                })}
+                {data.colors.map((color) => (
+                  <VideoSection
+                    key={color.publicTitle}
+                    title={color.publicTitle}
+                    imageSrc={color.imageSrc}
+                    videos={
+                      data.videoMap.colors[color.publicTitle]?.videos ?? []
+                    }
+                    state={upload[color.publicTitle]}
+                    onPick={(file) => uploadVideo(color, file)}
+                    onRemove={(fileId) =>
+                      removeVideo(color.publicTitle, fileId)
+                    }
+                  />
+                ))}
               </div>
             </>
           )}
         </section>
       </div>
     </main>
+  );
+}
+
+function VideoSection({
+  title,
+  imageSrc,
+  videos,
+  state,
+  onPick,
+  onRemove,
+}: {
+  title: string;
+  imageSrc: string | null;
+  videos: VideoEntry[];
+  state?: { busy: boolean; message: string };
+  onPick: (file: File) => void;
+  onRemove: (fileId: string) => void;
+}) {
+  return (
+    <div className="color-row">
+      <div className="color-head">
+        {imageSrc ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={imageSrc} alt="" className="thumb" />
+        ) : (
+          <span className="thumb placeholder" />
+        )}
+        <strong>{title}</strong>
+        <span className={"badge " + (videos.length ? "ok" : "empty")}>
+          {videos.length ? `${videos.length} video(s)` : "No video"}
+        </span>
+      </div>
+
+      {videos.length > 0 && (
+        <ul className="video-list">
+          {videos.map((v) => (
+            <li key={v.fileId}>
+              <span className={"badge " + statusClass(v.status)}>
+                {v.status}
+              </span>
+              {v.url ? (
+                <a href={v.url} target="_blank" rel="noreferrer">
+                  {v.filename}
+                </a>
+              ) : (
+                <span>{v.filename} (processing…)</span>
+              )}
+              <button className="link danger" onClick={() => onRemove(v.fileId)}>
+                Remove
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <UploadControl
+        busy={state?.busy ?? false}
+        message={state?.message ?? ""}
+        onPick={onPick}
+      />
+    </div>
   );
 }
 
