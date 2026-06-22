@@ -29,11 +29,18 @@ export async function POST(req: Request) {
     let changed = false;
     for (const color of Object.keys(map.colors)) {
       for (const v of map.colors[color].videos) {
-        if (v.status !== "READY" || !v.url) {
+        // Re-query while transcoding, or to backfill a missing url / poster
+        // (older entries predate poster support). FAILED is terminal — skip it.
+        if (v.status !== "FAILED" && (v.status !== "READY" || !v.url || !v.poster)) {
           const result = await getVideoFileStatus(v.fileId);
-          if (result.status !== v.status || (result.url && result.url !== v.url)) {
+          if (
+            result.status !== v.status ||
+            (result.url && result.url !== v.url) ||
+            (result.poster && result.poster !== v.poster)
+          ) {
             v.status = result.status;
             if (result.url) v.url = result.url;
+            if (result.poster) v.poster = result.poster;
             changed = true;
           }
         }

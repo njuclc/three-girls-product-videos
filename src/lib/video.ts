@@ -8,6 +8,8 @@ export interface VideoEntry {
   url: string;
   filename: string;
   status: string;
+  /** Poster / cover image URL (Shopify Video preview), filled in once available. */
+  poster: string;
 }
 
 export interface ColorVideos {
@@ -156,13 +158,17 @@ export async function registerFile(resourceUrl: string, alt: string): Promise<st
   return id;
 }
 
-/** Query a Video file node for its status + best playable source url. */
+/** Query a Video file node for its status + best playable source url + poster. */
 export async function getVideoFileStatus(
   fileId: string,
-): Promise<{ status: string; url: string }> {
+): Promise<{ status: string; url: string; poster: string }> {
   const data = await adminGraphql<{
     node:
-      | { fileStatus: string; sources: { url: string; format: string }[] }
+      | {
+          fileStatus: string;
+          sources: { url: string; format: string }[];
+          preview: { image: { url: string } | null } | null;
+        }
       | null;
   }>(
     `query VideoFile($id: ID!) {
@@ -171,14 +177,19 @@ export async function getVideoFileStatus(
           id
           fileStatus
           sources { url format mimeType }
+          preview { image { url } }
         }
       }
     }`,
     { id: fileId },
   );
   const node = data.node;
-  if (!node) return { status: "UNKNOWN", url: "" };
+  if (!node) return { status: "UNKNOWN", url: "", poster: "" };
   const sources = node.sources ?? [];
   const mp4 = sources.find((s) => s.format === "mp4") ?? sources[0];
-  return { status: node.fileStatus ?? "UNKNOWN", url: mp4?.url ?? "" };
+  return {
+    status: node.fileStatus ?? "UNKNOWN",
+    url: mp4?.url ?? "",
+    poster: node.preview?.image?.url ?? "",
+  };
 }

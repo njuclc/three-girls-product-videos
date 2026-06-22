@@ -47,15 +47,17 @@ export async function POST(req: Request) {
     // Opportunistic single status check (don't block on transcoding).
     let status = "PROCESSING";
     let url = "";
+    let poster = "";
     try {
       const result = await getVideoFileStatus(fileId);
       status = result.status;
       url = result.url;
+      poster = result.poster;
     } catch {
       // ignore; refresh later
     }
 
-    const entry = { fileId, url, filename: filename || "video.mp4", status };
+    const entry = { fileId, url, poster, filename: filename || "video.mp4", status };
 
     const map = await readColorVideoMap(productId);
     const existing = map.colors[color] ?? { variantId, videos: [] };

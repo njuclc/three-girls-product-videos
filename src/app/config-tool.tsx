@@ -20,6 +20,9 @@ interface VideoEntry {
   url: string;
   filename: string;
   status: string;
+  // Poster / cover image URL. Optional: older entries predate poster support
+  // and get backfilled on the next status refresh.
+  poster?: string;
 }
 interface ColorVideoMap {
   version: number;
@@ -207,7 +210,9 @@ export default function ConfigTool() {
     data &&
       Object.values(data.videoMap.colors).some((c) =>
         c.videos.some(
-          (v) => v.status !== "FAILED" && (v.status !== "READY" || !v.url),
+          (v) =>
+            v.status !== "FAILED" &&
+            (v.status !== "READY" || !v.url || !v.poster),
         ),
       ),
   );
@@ -413,6 +418,12 @@ function VideoSection({
         <ul className="video-list">
           {videos.map((v) => (
             <li key={v.fileId}>
+              {v.poster ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={v.poster} alt="" className="thumb" />
+              ) : (
+                <span className="thumb placeholder" />
+              )}
               <span className={"badge " + statusClass(v.status)}>
                 {v.status}
               </span>
