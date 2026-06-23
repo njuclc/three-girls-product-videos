@@ -99,67 +99,115 @@ export default function ConfigTool() {
     setUpload((s) => ({ ...s, [color]: { busy, message } }));
   }
 
-  async function uploadVideo(color: SwatchColor, file: File) {
-    if (!data) return;
+  /** Upload one file through stage → direct upload → register, appending it. */
+  async function uploadOne(color: SwatchColor, file: File, prefix: string) {
     const key = color.publicTitle;
-    setColorBusy(key, true, "Requesting upload…");
-    try {
-      // 1. Ask Shopify for a staged target.
-      const stageRes = await fetch("/api/upload/stage", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          filename: file.name,
-          mimeType: file.type || "video/mp4",
-          fileSize: file.size,
-        }),
-      });
-      const stageJson = await stageRes.json();
-      if (!stageRes.ok) throw new Error(stageJson.error || "Staged upload failed");
-      const target = stageJson.target as {
-        url: string;
-        resourceUrl: string;
-        parameters: { name: string; value: string }[];
-      };
 
-      // 2. Upload the bytes directly to the staged target (bypasses Vercel).
-      setColorBusy(key, true, "Uploading video…");
-      const form = new FormData();
-      for (const p of target.parameters) form.append(p.name, p.value);
-      form.append("file", file);
-      const putRes = await fetch(target.url, { method: "POST", body: form });
-      if (!putRes.ok) {
-        throw new Error(`Direct upload failed (${putRes.status})`);
+    // 1. Ask Shopify for a staged target.
+    setColorBusy(key, true, `${prefix}Requesting upload…`);
+    const stageRes = await fetch("/api/upload/stage", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        filename: file.name,
+        mimeType: file.type || "video/mp4",
+        fileSize: file.size,
+      }),
+    });
+    const stageJson = await stageRes.json();
+    if (!stageRes.ok) throw new Error(stageJson.error || "Staged upload failed");
+    const target = stageJson.target as {
+      url: string;
+      resourceUrl: string;
+      parameters: { name: string; value: string }[];
+    };
+
+    // 2. Upload the bytes directly to the staged target (bypasses Vercel).
+    setColorBusy(key, true, `${prefix}Uploading video…`);
+    const form = new FormData();
+    for (const p of target.parameters) form.append(p.name, p.value);
+    form.append("file", file);
+    const putRes = await fetch(target.url, { method: "POST", body: form });
+    if (!putRes.ok) {
+      throw new Error(`Direct upload failed (${putRes.status})`);
+    }
+
+    // 3. Register the file in Shopify + save to metafield.
+    setColorBusy(key, true, `${prefix}Saving…`);
+    const regRes = await fetch("/api/upload/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        productId: data!.product.id,
+        color: key,
+        variantId: color.variantId,
+        resourceUrl: target.resourceUrl,
+        filename: file.name,
+      }),
+    });
+    const regJson = await regRes.json();
+    if (!regRes.ok) throw new Error(regJson.error || "Register failed");
+
+    // Update local state.
+    setData((prev) => {
+      if (!prev) return prev;
+      const map: ColorVideoMap = JSON.parse(JSON.stringify(prev.videoMap));
+      const entry = map.colors[key] ?? { variantId: color.variantId, videos: [] };
+      entry.videos.push(regJson.entry as VideoEntry);
+      map.colors[key] = entry;
+      return { ...prev, videoMap: map };
+    });
+  }
+
+  /** Upload one or more files sequentially, preserving their picked order. */
+  async function uploadVideos(color: SwatchColor, files: File[]) {
+    if (!data || files.length === 0) return;
+    const key = color.publicTitle;
+    let failed = 0;
+    for (let i = 0; i < files.length; i++) {
+      const prefix = files.length > 1 ? `(${i + 1}/${files.length}) ` : "";
+      try {
+        await uploadOne(color, files[i], prefix);
+      } catch (e) {
+        failed += 1;
+        setColorBusy(
+          key,
+          false,
+          `${prefix}${e instanceof Error ? e.message : "Upload failed"}`,
+        );
       }
+    }
+    if (failed === 0) setColorBusy(key, false, "");
+    else if (files.length > 1)
+      setColorBusy(key, false, `${failed} of ${files.length} upload(s) failed`);
+  }
 
-      // 3. Register the file in Shopify + save to metafield.
-      setColorBusy(key, true, "Saving…");
-      const regRes = await fetch("/api/upload/register", {
+  /** Persist a new video order for a color (optimistic, then reconcile). */
+  async function reorderVideos(color: string, order: string[]) {
+    if (!data) return;
+    setData((prev) => {
+      if (!prev) return prev;
+      const map: ColorVideoMap = JSON.parse(JSON.stringify(prev.videoMap));
+      const entry = map.colors[color];
+      if (entry) {
+        const byId = new Map(entry.videos.map((v) => [v.fileId, v]));
+        entry.videos = order
+          .map((id) => byId.get(id))
+          .filter((v): v is VideoEntry => Boolean(v));
+      }
+      return { ...prev, videoMap: map };
+    });
+    try {
+      const res = await fetch("/api/videos/reorder", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          productId: data.product.id,
-          color: key,
-          variantId: color.variantId,
-          resourceUrl: target.resourceUrl,
-          filename: file.name,
-        }),
+        body: JSON.stringify({ productId: data.product.id, color, order }),
       });
-      const regJson = await regRes.json();
-      if (!regRes.ok) throw new Error(regJson.error || "Register failed");
-
-      // Update local state.
-      setData((prev) => {
-        if (!prev) return prev;
-        const map: ColorVideoMap = JSON.parse(JSON.stringify(prev.videoMap));
-        const entry = map.colors[key] ?? { variantId: color.variantId, videos: [] };
-        entry.videos.push(regJson.entry as VideoEntry);
-        map.colors[key] = entry;
-        return { ...prev, videoMap: map };
-      });
-      setColorBusy(key, false, "");
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Reorder failed");
+      setData((prev) => (prev ? { ...prev, videoMap: json.videoMap } : prev));
     } catch (e) {
-      setColorBusy(key, false, e instanceof Error ? e.message : "Upload failed");
+      setError(e instanceof Error ? e.message : "Reorder failed");
     }
   }
 
@@ -339,17 +387,18 @@ export default function ConfigTool() {
                     data.videoMap.colors[DEFAULT_VIDEO_KEY]?.videos ?? []
                   }
                   state={upload[DEFAULT_VIDEO_KEY]}
-                  onPick={(file) =>
-                    uploadVideo(
+                  onPick={(files) =>
+                    uploadVideos(
                       {
                         variantId: null,
                         publicTitle: DEFAULT_VIDEO_KEY,
                         imageSrc: null,
                       },
-                      file,
+                      files,
                     )
                   }
                   onRemove={(fileId) => removeVideo(DEFAULT_VIDEO_KEY, fileId)}
+                  onReorder={(order) => reorderVideos(DEFAULT_VIDEO_KEY, order)}
                 />
               </div>
 
@@ -369,9 +418,12 @@ export default function ConfigTool() {
                       data.videoMap.colors[color.publicTitle]?.videos ?? []
                     }
                     state={upload[color.publicTitle]}
-                    onPick={(file) => uploadVideo(color, file)}
+                    onPick={(files) => uploadVideos(color, files)}
                     onRemove={(fileId) =>
                       removeVideo(color.publicTitle, fileId)
+                    }
+                    onReorder={(order) =>
+                      reorderVideos(color.publicTitle, order)
                     }
                   />
                 ))}
@@ -391,14 +443,30 @@ function VideoSection({
   state,
   onPick,
   onRemove,
+  onReorder,
 }: {
   title: string;
   imageSrc: string | null;
   videos: VideoEntry[];
   state?: { busy: boolean; message: string };
-  onPick: (file: File) => void;
+  onPick: (files: File[]) => void;
   onRemove: (fileId: string) => void;
+  onReorder: (order: string[]) => void;
 }) {
+  const [dragId, setDragId] = useState<string | null>(null);
+  const draggable = videos.length > 1;
+
+  function handleDrop(targetId: string) {
+    if (!dragId || dragId === targetId) return;
+    const ids = videos.map((v) => v.fileId);
+    const from = ids.indexOf(dragId);
+    const to = ids.indexOf(targetId);
+    if (from < 0 || to < 0) return;
+    ids.splice(to, 0, ids.splice(from, 1)[0]);
+    onReorder(ids);
+    setDragId(null);
+  }
+
   return (
     <div className="color-row">
       <div className="color-head">
@@ -417,7 +485,20 @@ function VideoSection({
       {videos.length > 0 && (
         <ul className="video-list">
           {videos.map((v) => (
-            <li key={v.fileId}>
+            <li
+              key={v.fileId}
+              draggable={draggable}
+              onDragStart={() => setDragId(v.fileId)}
+              onDragOver={(e) => draggable && e.preventDefault()}
+              onDrop={() => handleDrop(v.fileId)}
+              onDragEnd={() => setDragId(null)}
+              className={dragId === v.fileId ? "dragging" : ""}
+            >
+              {draggable && (
+                <span className="drag-handle" aria-hidden title="Drag to reorder">
+                  ⠿
+                </span>
+              )}
               {v.poster ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={v.poster} alt="" className="thumb" />
@@ -464,7 +545,7 @@ function UploadControl({
 }: {
   busy: boolean;
   message: string;
-  onPick: (file: File) => void;
+  onPick: (files: File[]) => void;
 }) {
   const ref = useRef<HTMLInputElement>(null);
   return (
@@ -473,10 +554,11 @@ function UploadControl({
         ref={ref}
         type="file"
         accept="video/*"
+        multiple
         disabled={busy}
         onChange={(e) => {
-          const file = e.target.files?.[0];
-          if (file) onPick(file);
+          const files = Array.from(e.target.files ?? []);
+          if (files.length) onPick(files);
           e.target.value = "";
         }}
       />
