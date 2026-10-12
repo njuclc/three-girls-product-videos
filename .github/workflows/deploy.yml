@@ -1,0 +1,44 @@
+name: Deploy to Vercel
+
+# Push to main deploys to Vercel production automatically.
+# Requires the repository secret VERCEL_TOKEN (Vercel → Settings → Tokens).
+# ORG_ID / PROJECT_ID are not sensitive (per Vercel docs) and are pinned here
+# so only the token needs configuring.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  VERCEL_ORG_ID: team_EAwa2jB9o1Yxuszah85UkKy6
+  VERCEL_PROJECT_ID: prj_EwCU5vQqC6Z7o2T1HuWQiHVWHHqG
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Check VERCEL_TOKEN
+        run: |
+          if [ -z "${{ secrets.VERCEL_TOKEN }}" ]; then
+            echo "::error::VERCEL_TOKEN secret is not configured. Create a token at vercel.com → Settings → Tokens, then add it to this repo under Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+
+      - name: Install Vercel CLI
+        run: npm i -g vercel@latest
+
+      - name: Pull Vercel environment
+        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Build
+        run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Deploy
+        run: vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
