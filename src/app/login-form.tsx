@@ -26,9 +26,16 @@ export default function LoginForm() {
   }
 
   return (
-    <main className="centered">
+    <main className="login-screen">
+      <div className="glow glow-a" aria-hidden />
+      <div className="glow glow-b" aria-hidden />
       <form className="card login" onSubmit={submit}>
-        <h1>Product video config</h1>
+        <span className="brand-mark lg" aria-hidden>
+          <i />
+          <i />
+          <i />
+        </span>
+        <h1>Swatch Studio</h1>
         <p className="muted">Enter the access password to continue.</p>
         <input
           type="password"
@@ -38,7 +45,7 @@ export default function LoginForm() {
           autoFocus
         />
         {error && <p className="error">{error}</p>}
-        <button type="submit" disabled={loading || !password}>
+        <button type="submit" className="btn primary block" disabled={loading || !password}>
           {loading ? "Signing in…" : "Sign in"}
         </button>
       </form>

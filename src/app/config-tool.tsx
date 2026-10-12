@@ -81,6 +81,62 @@ function mediaEntryId(m: MediaEntry): string {
  */
 const DEFAULT_VIDEO_KEY = "__default__";
 
+/* ---------- Tiny inline icons ---------- */
+
+function IconSearch() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      aria-hidden
+    >
+      <circle cx="11" cy="11" r="7" />
+      <path d="m20 20-3.5-3.5" />
+    </svg>
+  );
+}
+
+function IconRefresh() {
+  return (
+    <svg
+      width="13"
+      height="13"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+      <path d="M21 3v6h-6" />
+    </svg>
+  );
+}
+
+function IconX() {
+  return (
+    <svg
+      width="10"
+      height="10"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.6"
+      strokeLinecap="round"
+      aria-hidden
+    >
+      <path d="M6 6l12 12M18 6L6 18" />
+    </svg>
+  );
+}
+
 /* ---------- Component ---------- */
 
 export default function ConfigTool() {
@@ -496,105 +552,141 @@ export default function ConfigTool() {
   }, [hasPending]);
 
   return (
-    <main className="layout">
+    <>
       <header className="topbar">
-        <h1>Product color video config</h1>
+        <div className="brand">
+          <span className="brand-mark" aria-hidden>
+            <i />
+            <i />
+            <i />
+          </span>
+          <div className="brand-text">
+            <strong>Swatch Studio</strong>
+            <span>Shopify color media</span>
+          </div>
+        </div>
         <button className="link" onClick={logout}>
           Sign out
         </button>
       </header>
 
-      {error && <div className="banner error">{error}</div>}
+      <main className="layout">
+        {error && <div className="banner error">{error}</div>}
 
-      <div className="grid">
-        {/* Left: product search */}
-        <section className="card">
-          <h2>Products</h2>
-          <form
-            className="search"
-            onSubmit={(e) => {
-              e.preventDefault();
-              searchProducts(query);
-            }}
-          >
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search products…"
-            />
-            <button type="submit" disabled={searching}>
-              {searching ? "…" : "Search"}
-            </button>
-          </form>
-          <ul className="product-list">
-            {products.map((p) => (
-              <li key={p.id}>
-                <button
-                  className={
-                    "product-item" +
-                    (data?.product.id === p.id ? " active" : "")
-                  }
-                  onClick={() => selectProduct(p)}
-                >
-                  {p.image ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={p.image} alt="" className="thumb" />
-                  ) : (
-                    <span className="thumb placeholder" />
-                  )}
-                  <span className="product-title">{p.title}</span>
-                </button>
-              </li>
-            ))}
-            {products.length === 0 && !searching && (
-              <li className="muted">No products found.</li>
-            )}
-          </ul>
-        </section>
-
-        {/* Right: colors + uploads */}
-        <section className="card">
-          {!data && !loadingProduct && (
-            <p className="muted">Select a product to configure its color videos.</p>
-          )}
-          {loadingProduct && <p className="muted">Loading product…</p>}
-
-          {data && (
-            <>
-              <div className="product-header">
-                {data.product.image && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={data.product.image} alt="" className="thumb large" />
-                )}
-                <div>
-                  <h2>{data.product.title}</h2>
-                  <span className="muted">/{data.product.handle}</span>
-                </div>
-              </div>
-
-              {data.colors.length === 0 && (
-                <div className="banner warning">
-                  No fabric colors found. {data.swatchNote ?? ""} The product
-                  page must render the{" "}
-                  <code>data-free-swatch-variants</code> JSON.
-                </div>
-              )}
-
-              <div className="colors-head">
-                <h3>Default video</h3>
-                {hasPending && (
-                  <button onClick={refreshStatus} disabled={refreshing}>
-                    {refreshing ? "Refreshing…" : "Refresh status"}
+        <div className="grid">
+          {/* Left: product search */}
+          <section className="panel rail">
+            <div className="panel-head">
+              <h2>Products</h2>
+              <span className="count-chip">{products.length}</span>
+            </div>
+            <form
+              className="search"
+              onSubmit={(e) => {
+                e.preventDefault();
+                searchProducts(query);
+              }}
+            >
+              <span className="search-icon">
+                <IconSearch />
+              </span>
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search products…"
+              />
+              <button type="submit" className="btn sm" disabled={searching}>
+                {searching ? "…" : "Search"}
+              </button>
+            </form>
+            <ul className="product-list">
+              {products.map((p) => (
+                <li key={p.id}>
+                  <button
+                    className={
+                      "product-item" +
+                      (data?.product.id === p.id ? " active" : "")
+                    }
+                    onClick={() => selectProduct(p)}
+                  >
+                    {p.image ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={p.image} alt="" className="thumb" />
+                    ) : (
+                      <span className="thumb placeholder" />
+                    )}
+                    <span className="product-title">{p.title}</span>
                   </button>
-                )}
+                </li>
+              ))}
+              {products.length === 0 && !searching && (
+                <li className="muted" style={{ padding: "10px 9px" }}>
+                  No products found.
+                </li>
+              )}
+            </ul>
+          </section>
+
+          {/* Right: colors + uploads */}
+          <section className="panel">
+            {!data && !loadingProduct && (
+              <div className="empty-state">
+                <span className="brand-mark lg" aria-hidden>
+                  <i />
+                  <i />
+                  <i />
+                </span>
+                <h3>Pick a product</h3>
+                <p>
+                  Choose a product on the left to arrange its gallery media and
+                  real-case videos per color.
+                </p>
               </div>
-              <p className="muted">
-                Shown when a color has no video of its own.
-              </p>
-              <div className="colors">
+            )}
+            {loadingProduct && (
+              <div className="empty-state">
+                <h3>Loading product…</h3>
+              </div>
+            )}
+
+            {data && (
+              <>
+                <div className="product-header">
+                  {data.product.image && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={data.product.image} alt="" className="thumb xl" />
+                  )}
+                  <div className="titles">
+                    <h2>{data.product.title}</h2>
+                    <span className="handle">/{data.product.handle}</span>
+                  </div>
+                  {hasPending && (
+                    <button
+                      className="btn sm"
+                      onClick={refreshStatus}
+                      disabled={refreshing}
+                    >
+                      <IconRefresh />
+                      {refreshing ? "Refreshing…" : "Refresh status"}
+                    </button>
+                  )}
+                </div>
+
+                {data.colors.length === 0 && (
+                  <div className="banner warning">
+                    No fabric colors found. {data.swatchNote ?? ""} The product
+                    page must render the{" "}
+                    <code>data-free-swatch-variants</code> JSON.
+                  </div>
+                )}
+
+                <div className="eyebrow-row">
+                  <h3 className="eyebrow">Default video</h3>
+                  <span className="muted small">
+                    Shown when a color has no video of its own
+                  </span>
+                </div>
                 <VideoSection
-                  title="Default"
-                  imageSrc={null}
                   videos={
                     data.videoMap.colors[DEFAULT_VIDEO_KEY]?.videos ?? []
                   }
@@ -612,75 +704,75 @@ export default function ConfigTool() {
                   onRemove={(fileId) => removeVideo(DEFAULT_VIDEO_KEY, fileId)}
                   onReorder={(order) => reorderVideos(DEFAULT_VIDEO_KEY, order)}
                 />
-              </div>
 
-              {data.colors.length > 0 && (
-                <div className="colors-head">
-                  <h3>Colors ({data.colors.length})</h3>
-                </div>
-              )}
-
-              <div className="colors">
-                {data.colors.map((color) => (
-                  <div className="color-row" key={color.publicTitle}>
-                    <div className="color-head">
-                      {color.imageSrc ? (
-                        // eslint-disable-next-line @next/js/next/no-img-element
-                        <img src={color.imageSrc} alt="" className="thumb" />
-                      ) : (
-                        <span className="thumb placeholder" />
-                      )}
-                      <strong>{color.publicTitle}</strong>
-                    </div>
-                    <MediaSection
-                      color={color.publicTitle}
-                      media={data.mediaMap.colors[color.publicTitle]?.media ?? []}
-                      state={mediaUpload[color.publicTitle]}
-                      productMedia={productMedia}
-                      onPick={(files) => uploadMedia(color.publicTitle, files)}
-                      onAddFromProduct={(item) =>
-                        addFromProduct(color.publicTitle, item)
-                      }
-                      onRemove={(id) => removeMedia(color.publicTitle, id)}
-                      onReorder={(order) => reorderMedia(color.publicTitle, order)}
-                    />
-                    <VideoSection
-                      title="Real Case Show videos"
-                      imageSrc={null}
-                      videos={
-                        data.videoMap.colors[color.publicTitle]?.videos ?? []
-                      }
-                      state={upload[color.publicTitle]}
-                      onPick={(files) => uploadVideos(color, files)}
-                      onRemove={(fileId) =>
-                        removeVideo(color.publicTitle, fileId)
-                      }
-                      onReorder={(order) =>
-                        reorderVideos(color.publicTitle, order)
-                      }
-                    />
+                {data.colors.length > 0 && (
+                  <div className="eyebrow-row">
+                    <h3 className="eyebrow">
+                      Colors
+                      <span className="count">{data.colors.length}</span>
+                    </h3>
                   </div>
-                ))}
-              </div>
-            </>
-          )}
-        </section>
-      </div>
-    </main>
+                )}
+
+                <div className="colors">
+                  {data.colors.map((color) => (
+                    <div className="color-row" key={color.publicTitle}>
+                      <div className="color-head">
+                        {color.imageSrc ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={color.imageSrc} alt="" className="swatch-chip" />
+                        ) : (
+                          <span className="thumb placeholder swatch-chip" />
+                        )}
+                        <strong>{color.publicTitle}</strong>
+                      </div>
+                      <MediaSection
+                        color={color.publicTitle}
+                        media={data.mediaMap.colors[color.publicTitle]?.media ?? []}
+                        state={mediaUpload[color.publicTitle]}
+                        productMedia={productMedia}
+                        onPick={(files) => uploadMedia(color.publicTitle, files)}
+                        onAddFromProduct={(item) =>
+                          addFromProduct(color.publicTitle, item)
+                        }
+                        onRemove={(id) => removeMedia(color.publicTitle, id)}
+                        onReorder={(order) => reorderMedia(color.publicTitle, order)}
+                      />
+                      <VideoSection
+                        title="Real Case Show"
+                        videos={
+                          data.videoMap.colors[color.publicTitle]?.videos ?? []
+                        }
+                        state={upload[color.publicTitle]}
+                        onPick={(files) => uploadVideos(color, files)}
+                        onRemove={(fileId) =>
+                          removeVideo(color.publicTitle, fileId)
+                        }
+                        onReorder={(order) =>
+                          reorderVideos(color.publicTitle, order)
+                        }
+                      />
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </section>
+        </div>
+      </main>
+    </>
   );
 }
 
 function VideoSection({
   title,
-  imageSrc,
   videos,
   state,
   onPick,
   onRemove,
   onReorder,
 }: {
-  title: string;
-  imageSrc: string | null;
+  title?: string;
   videos: VideoEntry[];
   state?: { busy: boolean; message: string };
   onPick: (files: File[]) => void;
@@ -704,64 +796,70 @@ function VideoSection({
   return (
     <div className="color-sub">
       <div className="sub-head">
-        {imageSrc ? (
-          // eslint-disable-next-line @next/js/next/no-img-element
-          <img src={imageSrc} alt="" className="thumb" />
-        ) : (
-          <span className="thumb placeholder" />
-        )}
-        <strong>{title}</strong>
+        {title && <strong>{title}</strong>}
         <span className={"badge " + (videos.length ? "ok" : "empty")}>
-          {videos.length ? `${videos.length} video(s)` : "No video"}
+          {videos.length ? `${videos.length} in lineup` : "None yet"}
         </span>
       </div>
 
-      {videos.length > 0 && (
-        <ul className="video-list">
-          {videos.map((v) => (
-            <li
-              key={v.fileId}
-              draggable={draggable}
-              onDragStart={() => setDragId(v.fileId)}
-              onDragOver={(e) => draggable && e.preventDefault()}
-              onDrop={() => handleDrop(v.fileId)}
-              onDragEnd={() => setDragId(null)}
-              className={dragId === v.fileId ? "dragging" : ""}
-            >
-              {draggable && (
-                <span className="drag-handle" aria-hidden title="Drag to reorder">
-                  ⠿
-                </span>
-              )}
-              {v.poster ? (
+      <ul className="strip">
+        {videos.map((v, i) => (
+          <li
+            key={v.fileId}
+            className={"strip-item" + (dragId === v.fileId ? " dragging" : "")}
+            draggable={draggable}
+            onDragStart={() => setDragId(v.fileId)}
+            onDragOver={(e) => draggable && e.preventDefault()}
+            onDrop={() => handleDrop(v.fileId)}
+            onDragEnd={() => setDragId(null)}
+            title={v.filename}
+          >
+            <div className="strip-thumb">
+              {v.poster && (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={v.poster} alt="" className="thumb" />
-              ) : (
-                <span className="thumb placeholder" />
+                <img src={v.poster} alt="" />
               )}
-              <span className={"badge " + statusClass(v.status)}>
-                {v.status}
-              </span>
+              <span className="order-chip">{i + 1}</span>
+              <span className={"status-dot " + statusClass(v.status)} />
+            </div>
+            <div className="strip-meta">
               {v.url ? (
-                <a href={v.url} target="_blank" rel="noreferrer">
+                <a className="strip-name" href={v.url} target="_blank" rel="noreferrer">
                   {v.filename}
                 </a>
               ) : (
-                <span>{v.filename} (processing…)</span>
+                <span className="strip-name">{v.filename}</span>
               )}
-              <button className="link danger" onClick={() => onRemove(v.fileId)}>
-                Remove
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
+              <span className={"status-label " + statusClass(v.status)}>
+                {v.status}
+              </span>
+            </div>
+            {draggable && (
+              <span className="drag-handle" aria-hidden title="Drag to reorder">
+                ⠿
+              </span>
+            )}
+            <button
+              className="strip-remove"
+              aria-label={`Remove ${v.filename}`}
+              title="Remove"
+              onClick={() => onRemove(v.fileId)}
+            >
+              <IconX />
+            </button>
+          </li>
+        ))}
+        <li className="strip-slot">
+          <UploadControl busy={state?.busy ?? false} onPick={onPick} />
+        </li>
+      </ul>
 
-      <UploadControl
-        busy={state?.busy ?? false}
-        message={state?.message ?? ""}
-        onPick={onPick}
-      />
+      {(state?.busy || state?.message) && (
+        <p className={"upload-note" + (state?.busy ? "" : " error")}>
+          {state?.busy && <span className="spinner" aria-hidden />}
+          {state?.message}
+        </p>
+      )}
     </div>
   );
 }
@@ -831,7 +929,7 @@ function MediaSection({
       <div className="sub-head">
         <strong>Gallery media</strong>
         <span className={"badge " + (media.length ? "ok" : "empty")}>
-          {media.length ? `${media.length} item(s)` : "Product default"}
+          {media.length ? `${media.length} in lineup` : "Product default"}
         </span>
       </div>
       <p className="muted small">
@@ -839,66 +937,77 @@ function MediaSection({
         color falls back to the product&rsquo;s own media.
       </p>
 
-      {media.length > 0 && (
-        <ul className="video-list">
-          {media.map((m) => {
-            const thumb = mediaThumbUrl(m, productMedia);
-            return (
-              <li
-                key={mediaEntryId(m)}
-                draggable={draggable}
-                onDragStart={() => setDragId(mediaEntryId(m))}
-                onDragOver={(e) => draggable && e.preventDefault()}
-                onDrop={() => handleDrop(mediaEntryId(m))}
-                onDragEnd={() => setDragId(null)}
-                className={dragId === mediaEntryId(m) ? "dragging" : ""}
-              >
-                {draggable && (
-                  <span className="drag-handle" aria-hidden title="Drag to reorder">
-                    ⠿
-                  </span>
+      <ul className="strip">
+        {media.map((m, i) => {
+          const thumb = mediaThumbUrl(m, productMedia);
+          return (
+            <li
+              key={mediaEntryId(m)}
+              className={"strip-item" + (dragId === mediaEntryId(m) ? " dragging" : "")}
+              draggable={draggable}
+              onDragStart={() => setDragId(mediaEntryId(m))}
+              onDragOver={(e) => draggable && e.preventDefault()}
+              onDrop={() => handleDrop(mediaEntryId(m))}
+              onDragEnd={() => setDragId(null)}
+              title={mediaLabel(m, productMedia)}
+            >
+              <div className="strip-thumb">
+                {thumb && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={thumb} alt="" />
                 )}
-                {thumb ? (
-                  // eslint-disable-next-line @next/js/next/no-img-element
-                  <img src={thumb} alt="" className="thumb" />
+                <span className="order-chip">{i + 1}</span>
+                {m.kind === "upload" && (
+                  <span className={"status-dot " + statusClass(m.status)} />
+                )}
+              </div>
+              <div className="strip-meta">
+                {m.kind === "upload" && m.url ? (
+                  <a className="strip-name" href={m.url} target="_blank" rel="noreferrer">
+                    {m.filename}
+                  </a>
                 ) : (
-                  <span className="thumb placeholder" />
+                  <span className="strip-name">{mediaLabel(m, productMedia)}</span>
                 )}
-                <span className="badge">
+                <span className="status-label">
                   {m.kind === "product_media" ? `product ${m.type}` : m.type}
                 </span>
-                {m.kind === "upload" && (
-                  <span className={"badge " + statusClass(m.status)}>{m.status}</span>
-                )}
-                <span>
-                  {m.kind === "upload" && m.url ? (
-                    <a href={m.url} target="_blank" rel="noreferrer">
-                      {m.filename}
-                    </a>
-                  ) : (
-                    mediaLabel(m, productMedia)
-                  )}
+              </div>
+              {draggable && (
+                <span className="drag-handle" aria-hidden title="Drag to reorder">
+                  ⠿
                 </span>
-                <button
-                  className="link danger"
-                  onClick={() => onRemove(mediaEntryId(m))}
-                >
-                  Remove
-                </button>
-              </li>
-            );
-          })}
-        </ul>
+              )}
+              <button
+                className="strip-remove"
+                aria-label={`Remove ${mediaLabel(m, productMedia)}`}
+                title="Remove"
+                onClick={() => onRemove(mediaEntryId(m))}
+              >
+                <IconX />
+              </button>
+            </li>
+          );
+        })}
+        <li className="strip-slot">
+          <UploadControl
+            busy={state?.busy ?? false}
+            accept="image/*,video/*"
+            label="Drop image / video"
+            onPick={onPick}
+          />
+        </li>
+      </ul>
+
+      {(state?.busy || state?.message) && (
+        <p className={"upload-note" + (state?.busy ? "" : " error")}>
+          {state?.busy && <span className="spinner" aria-hidden />}
+          {state?.message}
+        </p>
       )}
 
       <div className="media-actions">
-        <UploadControl
-          busy={state?.busy ?? false}
-          message={state?.message ?? ""}
-          accept="image/*,video/*"
-          onPick={onPick}
-        />
-        <button className="link" onClick={() => setPickerOpen((o) => !o)}>
+        <button className="btn ghost sm" onClick={() => setPickerOpen((o) => !o)}>
           {pickerOpen ? "Close product media" : "Add from product media…"}
         </button>
       </div>
@@ -919,7 +1028,7 @@ function MediaSection({
                 title={p.alt || p.type}
               >
                 {p.previewUrl ? (
-                  // eslint-disable-next-line @next/js/next/no-img-element
+                  // eslint-disable-next-line @next/next/no-img-element
                   <img src={p.previewUrl} alt="" />
                 ) : (
                   <span className="thumb placeholder" />
@@ -937,32 +1046,74 @@ function MediaSection({
 
 function UploadControl({
   busy,
-  message,
   accept = "video/*",
+  label = "Drop video / click",
   onPick,
 }: {
   busy: boolean;
-  message: string;
   accept?: string;
+  label?: string;
   onPick: (files: File[]) => void;
 }) {
   const ref = useRef<HTMLInputElement>(null);
+  const [over, setOver] = useState(false);
+
+  // Element drags (reordering) carry no Files — don't flash the drop state for them.
+  function hasFiles(e: React.DragEvent) {
+    return e.dataTransfer.types.includes("Files");
+  }
+
   return (
-    <div className="upload">
+    <>
       <input
         ref={ref}
         type="file"
         accept={accept}
         multiple
-        disabled={busy}
+        hidden
+        tabIndex={-1}
         onChange={(e) => {
           const files = Array.from(e.target.files ?? []);
           if (files.length) onPick(files);
           e.target.value = "";
         }}
       />
-      {busy && <span className="muted">{message || "Working…"}</span>}
-      {!busy && message && <span className="error">{message}</span>}
-    </div>
+      <button
+        type="button"
+        className={"drop-tile" + (over ? " over" : "")}
+        disabled={busy}
+        onClick={() => ref.current?.click()}
+        onDragOver={(e) => {
+          if (!hasFiles(e)) return;
+          e.preventDefault();
+          setOver(true);
+        }}
+        onDragLeave={() => setOver(false)}
+        onDrop={(e) => {
+          if (!hasFiles(e)) return;
+          e.preventDefault();
+          setOver(false);
+          if (busy) return;
+          const files = Array.from(e.dataTransfer.files ?? []);
+          if (files.length) onPick(files);
+        }}
+      >
+        <span className="drop-plus" aria-hidden>
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            aria-hidden
+          >
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+        </span>
+        <span className="drop-hint">{busy ? "Uploading…" : label}</span>
+      </button>
+    </>
   );
 }
