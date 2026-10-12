@@ -158,10 +158,10 @@ export default function ConfigTool() {
     try {
       const res = await fetch(`/api/products?q=${encodeURIComponent(q)}`);
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Search failed");
+      if (!res.ok) throw new Error(json.error || "搜索失败");
       setProducts(json.products);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Search failed");
+      setError(e instanceof Error ? e.message : "搜索失败");
     } finally {
       setSearching(false);
     }
@@ -180,7 +180,7 @@ export default function ConfigTool() {
     try {
       const res = await fetch(`/api/colors?productId=${encodeURIComponent(p.id)}`);
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Failed to load product");
+      if (!res.ok) throw new Error(json.error || "加载产品失败");
       setData(json as ProductData);
       // Product media powers the "add from product media" picker; load it in
       // the background so the picker opens instantly.
@@ -189,7 +189,7 @@ export default function ConfigTool() {
         .then((j) => setProductMedia(j.media ?? []))
         .catch(() => {});
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load product");
+      setError(e instanceof Error ? e.message : "加载产品失败");
     } finally {
       setLoadingProduct(false);
     }
@@ -204,7 +204,7 @@ export default function ConfigTool() {
     const key = color.publicTitle;
 
     // 1. Ask Shopify for a staged target.
-    setColorBusy(key, true, `${prefix}Requesting upload…`);
+    setColorBusy(key, true, `${prefix}正在申请上传…`);
     const stageRes = await fetch("/api/upload/stage", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -215,7 +215,7 @@ export default function ConfigTool() {
       }),
     });
     const stageJson = await stageRes.json();
-    if (!stageRes.ok) throw new Error(stageJson.error || "Staged upload failed");
+    if (!stageRes.ok) throw new Error(stageJson.error || "申请上传失败");
     const target = stageJson.target as {
       url: string;
       resourceUrl: string;
@@ -223,17 +223,17 @@ export default function ConfigTool() {
     };
 
     // 2. Upload the bytes directly to the staged target (bypasses Vercel).
-    setColorBusy(key, true, `${prefix}Uploading video…`);
+    setColorBusy(key, true, `${prefix}正在上传视频…`);
     const form = new FormData();
     for (const p of target.parameters) form.append(p.name, p.value);
     form.append("file", file);
     const putRes = await fetch(target.url, { method: "POST", body: form });
     if (!putRes.ok) {
-      throw new Error(`Direct upload failed (${putRes.status})`);
+      throw new Error(`直传失败（${putRes.status}）`);
     }
 
     // 3. Register the file in Shopify + save to metafield.
-    setColorBusy(key, true, `${prefix}Saving…`);
+    setColorBusy(key, true, `${prefix}正在保存…`);
     const regRes = await fetch("/api/upload/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -246,7 +246,7 @@ export default function ConfigTool() {
       }),
     });
     const regJson = await regRes.json();
-    if (!regRes.ok) throw new Error(regJson.error || "Register failed");
+    if (!regRes.ok) throw new Error(regJson.error || "登记失败");
 
     // Update local state.
     setData((prev) => {
@@ -273,13 +273,13 @@ export default function ConfigTool() {
         setColorBusy(
           key,
           false,
-          `${prefix}${e instanceof Error ? e.message : "Upload failed"}`,
+          `${prefix}${e instanceof Error ? e.message : "上传失败"}`,
         );
       }
     }
     if (failed === 0) setColorBusy(key, false, "");
     else if (files.length > 1)
-      setColorBusy(key, false, `${failed} of ${files.length} upload(s) failed`);
+      setColorBusy(key, false, `${failed}/${files.length} 个文件上传失败`);
   }
 
   /** Persist a new video order for a color (optimistic, then reconcile). */
@@ -304,10 +304,10 @@ export default function ConfigTool() {
         body: JSON.stringify({ productId: data.product.id, color, order }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Reorder failed");
+      if (!res.ok) throw new Error(json.error || "保存排序失败");
       setData((prev) => (prev ? { ...prev, videoMap: json.videoMap } : prev));
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Reorder failed");
+      setError(e instanceof Error ? e.message : "保存排序失败");
     }
   }
 
@@ -320,10 +320,10 @@ export default function ConfigTool() {
         body: JSON.stringify({ productId: data.product.id, color, fileId }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Remove failed");
+      if (!res.ok) throw new Error(json.error || "删除失败");
       setData((prev) => (prev ? { ...prev, videoMap: json.videoMap } : prev));
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Remove failed");
+      setError(e instanceof Error ? e.message : "删除失败");
     }
   }
 
@@ -338,7 +338,7 @@ export default function ConfigTool() {
     const isImage = file.type.startsWith("image/");
     const kind = isImage ? "image" : "video";
 
-    setMediaBusy(color, true, `${prefix}Requesting upload…`);
+    setMediaBusy(color, true, `${prefix}正在申请上传…`);
     const stageRes = await fetch("/api/upload/stage", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -350,21 +350,21 @@ export default function ConfigTool() {
       }),
     });
     const stageJson = await stageRes.json();
-    if (!stageRes.ok) throw new Error(stageJson.error || "Staged upload failed");
+    if (!stageRes.ok) throw new Error(stageJson.error || "申请上传失败");
     const target = stageJson.target as {
       url: string;
       resourceUrl: string;
       parameters: { name: string; value: string }[];
     };
 
-    setMediaBusy(color, true, `${prefix}Uploading ${kind}…`);
+    setMediaBusy(color, true, `${prefix}正在上传${isImage ? "图片" : "视频"}…`);
     const form = new FormData();
     for (const p of target.parameters) form.append(p.name, p.value);
     form.append("file", file);
     const putRes = await fetch(target.url, { method: "POST", body: form });
-    if (!putRes.ok) throw new Error(`Direct upload failed (${putRes.status})`);
+    if (!putRes.ok) throw new Error(`直传失败（${putRes.status}）`);
 
-    setMediaBusy(color, true, `${prefix}Saving…`);
+    setMediaBusy(color, true, `${prefix}正在保存…`);
     const regRes = await fetch("/api/media/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -378,7 +378,7 @@ export default function ConfigTool() {
       }),
     });
     const regJson = await regRes.json();
-    if (!regRes.ok) throw new Error(regJson.error || "Register failed");
+    if (!regRes.ok) throw new Error(regJson.error || "登记失败");
     setData((prev) => (prev ? { ...prev, mediaMap: regJson.mediaMap } : prev));
   }
 
@@ -395,13 +395,13 @@ export default function ConfigTool() {
         setMediaBusy(
           color,
           false,
-          `${prefix}${e instanceof Error ? e.message : "Upload failed"}`,
+          `${prefix}${e instanceof Error ? e.message : "上传失败"}`,
         );
       }
     }
     if (failed === 0) setMediaBusy(color, false, "");
     else if (files.length > 1)
-      setMediaBusy(color, false, `${failed} of ${files.length} upload(s) failed`);
+      setMediaBusy(color, false, `${failed}/${files.length} 个文件上传失败`);
   }
 
   /** Reference an existing product media item into a color's gallery set. */
@@ -420,10 +420,10 @@ export default function ConfigTool() {
         }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Add failed");
+      if (!res.ok) throw new Error(json.error || "添加失败");
       setData((prev) => (prev ? { ...prev, mediaMap: json.mediaMap } : prev));
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Add failed");
+      setError(e instanceof Error ? e.message : "添加失败");
     }
   }
 
@@ -436,10 +436,10 @@ export default function ConfigTool() {
         body: JSON.stringify({ productId: data.product.id, color, entryId: id }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Remove failed");
+      if (!res.ok) throw new Error(json.error || "删除失败");
       setData((prev) => (prev ? { ...prev, mediaMap: json.mediaMap } : prev));
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Remove failed");
+      setError(e instanceof Error ? e.message : "删除失败");
     }
   }
 
@@ -464,10 +464,10 @@ export default function ConfigTool() {
         body: JSON.stringify({ productId: data.product.id, color, order }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Reorder failed");
+      if (!res.ok) throw new Error(json.error || "保存排序失败");
       setData((prev) => (prev ? { ...prev, mediaMap: json.mediaMap } : prev));
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Reorder failed");
+      setError(e instanceof Error ? e.message : "保存排序失败");
     }
   }
 
@@ -489,15 +489,15 @@ export default function ConfigTool() {
       ]);
       const videoJson = await videoRes.json();
       const mediaJson = await mediaRes.json();
-      if (!videoRes.ok) throw new Error(videoJson.error || "Refresh failed");
-      if (!mediaRes.ok) throw new Error(mediaJson.error || "Refresh failed");
+      if (!videoRes.ok) throw new Error(videoJson.error || "刷新失败");
+      if (!mediaRes.ok) throw new Error(mediaJson.error || "刷新失败");
       setData((prev) =>
         prev
           ? { ...prev, videoMap: videoJson.videoMap, mediaMap: mediaJson.mediaMap }
           : prev,
       );
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Refresh failed");
+      setError(e instanceof Error ? e.message : "刷新失败");
     } finally {
       setRefreshing(false);
     }
@@ -561,12 +561,12 @@ export default function ConfigTool() {
             <i />
           </span>
           <div className="brand-text">
-            <strong>Swatch Studio</strong>
-            <span>Shopify color media</span>
+            <strong>色卡工作台</strong>
+            <span>Shopify 颜色媒体配置</span>
           </div>
         </div>
         <button className="link" onClick={logout}>
-          Sign out
+          退出登录
         </button>
       </header>
 
@@ -577,7 +577,7 @@ export default function ConfigTool() {
           {/* Left: product search */}
           <section className="panel rail">
             <div className="panel-head">
-              <h2>Products</h2>
+              <h2>产品</h2>
               <span className="count-chip">{products.length}</span>
             </div>
             <form
@@ -593,10 +593,10 @@ export default function ConfigTool() {
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search products…"
+                placeholder="搜索产品…"
               />
               <button type="submit" className="btn sm" disabled={searching}>
-                {searching ? "…" : "Search"}
+                {searching ? "…" : "搜索"}
               </button>
             </form>
             <ul className="product-list">
@@ -621,7 +621,7 @@ export default function ConfigTool() {
               ))}
               {products.length === 0 && !searching && (
                 <li className="muted" style={{ padding: "10px 9px" }}>
-                  No products found.
+                  未找到产品。
                 </li>
               )}
             </ul>
@@ -636,16 +636,15 @@ export default function ConfigTool() {
                   <i />
                   <i />
                 </span>
-                <h3>Pick a product</h3>
+                <h3>选择一个产品</h3>
                 <p>
-                  Choose a product on the left to arrange its gallery media and
-                  real-case videos per color.
+                  在左侧搜索并选择产品，为每个颜色配置主图区媒体和实拍展示视频。
                 </p>
               </div>
             )}
             {loadingProduct && (
               <div className="empty-state">
-                <h3>Loading product…</h3>
+                <h3>正在加载产品…</h3>
               </div>
             )}
 
@@ -667,26 +666,21 @@ export default function ConfigTool() {
                       disabled={refreshing}
                     >
                       <IconRefresh />
-                      {refreshing ? "Refreshing…" : "Refresh status"}
+                      {refreshing ? "刷新中…" : "刷新状态"}
                     </button>
                   )}
                 </div>
 
                 {data.colors.length === 0 && (
                   <div className="banner warning">
-                    No fabric colors found. {data.swatchNote ?? ""} The product
-                    page must render the{" "}
-                    <code>data-free-swatch-variants</code> JSON.
+                    未找到面料颜色。{data.swatchNote ?? ""} 商品页必须渲染{" "}
+                    <code>data-free-swatch-variants</code> JSON。
                   </div>
                 )}
 
-                <div className="eyebrow-row">
-                  <h3 className="eyebrow">Default video</h3>
-                  <span className="muted small">
-                    Shown when a color has no video of its own
-                  </span>
-                </div>
                 <VideoSection
+                  title="默认视频"
+                  note="当颜色没有专属视频时展示。"
                   videos={
                     data.videoMap.colors[DEFAULT_VIDEO_KEY]?.videos ?? []
                   }
@@ -708,7 +702,7 @@ export default function ConfigTool() {
                 {data.colors.length > 0 && (
                   <div className="eyebrow-row">
                     <h3 className="eyebrow">
-                      Colors
+                      颜色
                       <span className="count">{data.colors.length}</span>
                     </h3>
                   </div>
@@ -739,7 +733,7 @@ export default function ConfigTool() {
                         onReorder={(order) => reorderMedia(color.publicTitle, order)}
                       />
                       <VideoSection
-                        title="Real Case Show"
+                        title="实拍展示视频"
                         videos={
                           data.videoMap.colors[color.publicTitle]?.videos ?? []
                         }
@@ -766,6 +760,7 @@ export default function ConfigTool() {
 
 function VideoSection({
   title,
+  note,
   videos,
   state,
   onPick,
@@ -773,6 +768,7 @@ function VideoSection({
   onReorder,
 }: {
   title?: string;
+  note?: string;
   videos: VideoEntry[];
   state?: { busy: boolean; message: string };
   onPick: (files: File[]) => void;
@@ -798,9 +794,10 @@ function VideoSection({
       <div className="sub-head">
         {title && <strong>{title}</strong>}
         <span className={"badge " + (videos.length ? "ok" : "empty")}>
-          {videos.length ? `${videos.length} in lineup` : "None yet"}
+          {videos.length ? `${videos.length} 个视频` : "暂无视频"}
         </span>
       </div>
+      {note && <p className="muted small">{note}</p>}
 
       <ul className="strip">
         {videos.map((v, i) => (
@@ -831,18 +828,18 @@ function VideoSection({
                 <span className="strip-name">{v.filename}</span>
               )}
               <span className={"status-label " + statusClass(v.status)}>
-                {v.status}
+                {statusText(v.status)}
               </span>
             </div>
             {draggable && (
-              <span className="drag-handle" aria-hidden title="Drag to reorder">
+              <span className="drag-handle" aria-hidden title="拖动排序">
                 ⠿
               </span>
             )}
             <button
               className="strip-remove"
-              aria-label={`Remove ${v.filename}`}
-              title="Remove"
+              aria-label={`删除 ${v.filename}`}
+              title="删除"
               onClick={() => onRemove(v.fileId)}
             >
               <IconX />
@@ -870,6 +867,29 @@ function statusClass(status: string): string {
   return "pending";
 }
 
+/** 中文状态文案（等宽小标签用）。 */
+function statusText(status: string): string {
+  if (status === "READY") return "已就绪";
+  if (status === "FAILED") return "失败";
+  return "处理中";
+}
+
+/** 媒体类型的中文文案。 */
+function mediaTypeText(type: string): string {
+  switch (type) {
+    case "image":
+      return "图片";
+    case "video":
+      return "视频";
+    case "external_video":
+      return "外部视频";
+    case "model":
+      return "3D 模型";
+    default:
+      return type;
+  }
+}
+
 /** Resolve the thumbnail for a media entry (uploads carry their own url,
  * product-media refs are looked up in the live product media list). */
 function mediaThumbUrl(m: MediaEntry, productMedia: ProductMediaItem[]): string | null {
@@ -880,7 +900,7 @@ function mediaThumbUrl(m: MediaEntry, productMedia: ProductMediaItem[]): string 
 function mediaLabel(m: MediaEntry, productMedia: ProductMediaItem[]): string {
   if (m.kind === "upload") return m.filename;
   const item = productMedia.find((p) => p.id === m.mediaId);
-  return item?.alt || `Product ${m.type}`;
+  return item?.alt || `商品${mediaTypeText(m.type)}`;
 }
 
 function MediaSection({
@@ -927,14 +947,13 @@ function MediaSection({
   return (
     <div className="color-sub" data-color={color}>
       <div className="sub-head">
-        <strong>Gallery media</strong>
+        <strong>主图区媒体</strong>
         <span className={"badge " + (media.length ? "ok" : "empty")}>
-          {media.length ? `${media.length} in lineup` : "Product default"}
+          {media.length ? `${media.length} 项媒体` : "商品默认"}
         </span>
       </div>
       <p className="muted small">
-        Shown in the main image area when this color is selected; an unset
-        color falls back to the product&rsquo;s own media.
+        选中该颜色时在主图区展示；未设置的颜色回退到商品自身的媒体。
       </p>
 
       <ul className="strip">
@@ -970,18 +989,20 @@ function MediaSection({
                   <span className="strip-name">{mediaLabel(m, productMedia)}</span>
                 )}
                 <span className="status-label">
-                  {m.kind === "product_media" ? `product ${m.type}` : m.type}
+                  {m.kind === "product_media"
+                    ? `商品${mediaTypeText(m.type)}`
+                    : mediaTypeText(m.type)}
                 </span>
               </div>
               {draggable && (
-                <span className="drag-handle" aria-hidden title="Drag to reorder">
+                <span className="drag-handle" aria-hidden title="拖动排序">
                   ⠿
                 </span>
               )}
               <button
                 className="strip-remove"
-                aria-label={`Remove ${mediaLabel(m, productMedia)}`}
-                title="Remove"
+                aria-label={`删除 ${mediaLabel(m, productMedia)}`}
+                title="删除"
                 onClick={() => onRemove(mediaEntryId(m))}
               >
                 <IconX />
@@ -993,7 +1014,7 @@ function MediaSection({
           <UploadControl
             busy={state?.busy ?? false}
             accept="image/*,video/*"
-            label="Drop image / video"
+            label="拖入或点击上传图片/视频"
             onPick={onPick}
           />
         </li>
@@ -1008,14 +1029,14 @@ function MediaSection({
 
       <div className="media-actions">
         <button className="btn ghost sm" onClick={() => setPickerOpen((o) => !o)}>
-          {pickerOpen ? "Close product media" : "Add from product media…"}
+          {pickerOpen ? "收起商品媒体" : "从商品媒体添加…"}
         </button>
       </div>
 
       {pickerOpen && (
         <div className="media-picker">
           {pickable.length === 0 && (
-            <p className="muted small">No usable product media found.</p>
+            <p className="muted small">没有可用的商品媒体。</p>
           )}
           {pickable.map((p) => {
             const added = inColor.has(p.id);
@@ -1033,8 +1054,8 @@ function MediaSection({
                 ) : (
                   <span className="thumb placeholder" />
                 )}
-                <span className="badge">{p.type}</span>
-                <span className="muted small">{added ? "Added" : "Add"}</span>
+                <span className="badge">{mediaTypeText(p.type)}</span>
+                <span className="muted small">{added ? "已添加" : "添加"}</span>
               </button>
             );
           })}
@@ -1047,7 +1068,7 @@ function MediaSection({
 function UploadControl({
   busy,
   accept = "video/*",
-  label = "Drop video / click",
+  label = "拖入或点击上传视频",
   onPick,
 }: {
   busy: boolean;
@@ -1112,7 +1133,7 @@ function UploadControl({
             <path d="M12 5v14M5 12h14" />
           </svg>
         </span>
-        <span className="drop-hint">{busy ? "Uploading…" : label}</span>
+        <span className="drop-hint">{busy ? "上传中…" : label}</span>
       </button>
     </>
   );

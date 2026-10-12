@@ -21,7 +21,7 @@ export default function LoginForm() {
       window.location.reload();
     } else {
       const data = await res.json().catch(() => ({}));
-      setError(data.error || "Login failed");
+      setError(data.error || "登录失败");
     }
   }
 
@@ -35,18 +35,18 @@ export default function LoginForm() {
           <i />
           <i />
         </span>
-        <h1>Swatch Studio</h1>
-        <p className="muted">Enter the access password to continue.</p>
+        <h1>色卡工作台</h1>
+        <p className="muted">输入访问密码以继续。</p>
         <input
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          placeholder="Password"
+          placeholder="密码"
           autoFocus
         />
         {error && <p className="error">{error}</p>}
         <button type="submit" className="btn primary block" disabled={loading || !password}>
-          {loading ? "Signing in…" : "Sign in"}
+          {loading ? "登录中…" : "登录"}
         </button>
       </form>
     </main>

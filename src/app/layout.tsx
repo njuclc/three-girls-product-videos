@@ -13,8 +13,8 @@ const ui = Instrument_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Swatch Studio",
-  description: "Per-color gallery media & videos for Shopify products",
+  title: "色卡工作台",
+  description: "为 Shopify 产品按颜色配置主图区媒体与实拍展示视频",
 };
 
 export default function RootLayout({
@@ -23,7 +23,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${display.variable} ${ui.variable}`}>
+    <html lang="zh-CN" className={`${display.variable} ${ui.variable}`}>
       <body>{children}</body>
     </html>
   );
