@@ -307,3 +307,61 @@ code {
   gap: 10px;
   margin-top: 10px;
 }
+
+/* ---------- Gallery media (custom.color_media) ---------- */
+.color-sub {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+  margin-top: 10px;
+  background: #fff;
+}
+.color-row > .color-sub:first-of-type {
+  margin-top: 12px;
+}
+.sub-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.sub-head strong {
+  flex: 1;
+}
+.muted.small {
+  font-size: 12px;
+  margin: 4px 0 0;
+}
+.media-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.media-actions .upload {
+  margin-top: 0;
+}
+.media-picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+.media-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fafbfb;
+}
+.media-tile img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 6px;
+}
+.media-tile.added {
+  opacity: 0.55;
+}

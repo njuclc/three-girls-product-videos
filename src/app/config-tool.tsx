@@ -28,15 +28,50 @@ interface ColorVideoMap {
   version: number;
   colors: Record<string, { variantId: number | null; videos: VideoEntry[] }>;
 }
+type MediaEntry =
+  | {
+      kind: "upload";
+      type: "image" | "video";
+      fileId: string;
+      url: string;
+      poster?: string;
+      width?: number;
+      height?: number;
+      filename: string;
+      status: string;
+    }
+  | {
+      kind: "product_media";
+      mediaId: string;
+      type: "image" | "video" | "external_video" | "model";
+    };
+interface ColorMediaMap {
+  version: number;
+  colors: Record<string, { media: MediaEntry[] }>;
+}
+interface ProductMediaItem {
+  id: string;
+  type: "image" | "video" | "external_video" | "model";
+  alt: string;
+  previewUrl: string;
+  videoUrl: string | null;
+  status: string | null;
+}
 interface ProductData {
   product: Product;
   colors: SwatchColor[];
   swatchSource: string;
   swatchNote: string | null;
   videoMap: ColorVideoMap;
+  mediaMap: ColorMediaMap;
 }
 
 type UploadState = Record<string, { busy: boolean; message: string }>;
+
+/** Unique id of a media entry within its color (fileId or mediaId). */
+function mediaEntryId(m: MediaEntry): string {
+  return m.kind === "upload" ? m.fileId : m.mediaId;
+}
 
 /**
  * Reserved color key for the product-level default / fallback video list.
@@ -58,6 +93,8 @@ export default function ConfigTool() {
   const [error, setError] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   const [upload, setUpload] = useState<UploadState>({});
+  const [mediaUpload, setMediaUpload] = useState<UploadState>({});
+  const [productMedia, setProductMedia] = useState<ProductMediaItem[]>([]);
 
   const searchProducts = useCallback(async (q: string) => {
     setSearching(true);
@@ -83,11 +120,18 @@ export default function ConfigTool() {
     setLoadingProduct(true);
     setError("");
     setData(null);
+    setProductMedia([]);
     try {
       const res = await fetch(`/api/colors?productId=${encodeURIComponent(p.id)}`);
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Failed to load product");
       setData(json as ProductData);
+      // Product media powers the "add from product media" picker; load it in
+      // the background so the picker opens instantly.
+      fetch(`/api/product-media?productId=${encodeURIComponent(p.id)}`)
+        .then((r) => (r.ok ? r.json() : { media: [] }))
+        .then((j) => setProductMedia(j.media ?? []))
+        .catch(() => {});
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load product");
     } finally {
@@ -227,18 +271,175 @@ export default function ConfigTool() {
     }
   }
 
+  /* ---------- Gallery media (custom.color_media) ---------- */
+
+  function setMediaBusy(color: string, busy: boolean, message = "") {
+    setMediaUpload((s) => ({ ...s, [color]: { busy, message } }));
+  }
+
+  /** Upload one gallery media file through stage → direct upload → register. */
+  async function uploadMediaOne(color: string, file: File, prefix: string) {
+    const isImage = file.type.startsWith("image/");
+    const kind = isImage ? "image" : "video";
+
+    setMediaBusy(color, true, `${prefix}Requesting upload…`);
+    const stageRes = await fetch("/api/upload/stage", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        filename: file.name,
+        mimeType: file.type || (isImage ? "image/jpeg" : "video/mp4"),
+        fileSize: file.size,
+        kind,
+      }),
+    });
+    const stageJson = await stageRes.json();
+    if (!stageRes.ok) throw new Error(stageJson.error || "Staged upload failed");
+    const target = stageJson.target as {
+      url: string;
+      resourceUrl: string;
+      parameters: { name: string; value: string }[];
+    };
+
+    setMediaBusy(color, true, `${prefix}Uploading ${kind}…`);
+    const form = new FormData();
+    for (const p of target.parameters) form.append(p.name, p.value);
+    form.append("file", file);
+    const putRes = await fetch(target.url, { method: "POST", body: form });
+    if (!putRes.ok) throw new Error(`Direct upload failed (${putRes.status})`);
+
+    setMediaBusy(color, true, `${prefix}Saving…`);
+    const regRes = await fetch("/api/media/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        productId: data!.product.id,
+        color,
+        mode: "upload",
+        type: kind,
+        resourceUrl: target.resourceUrl,
+        filename: file.name,
+      }),
+    });
+    const regJson = await regRes.json();
+    if (!regRes.ok) throw new Error(regJson.error || "Register failed");
+    setData((prev) => (prev ? { ...prev, mediaMap: regJson.mediaMap } : prev));
+  }
+
+  /** Upload one or more gallery files sequentially, preserving picked order. */
+  async function uploadMedia(color: string, files: File[]) {
+    if (!data || files.length === 0) return;
+    let failed = 0;
+    for (let i = 0; i < files.length; i++) {
+      const prefix = files.length > 1 ? `(${i + 1}/${files.length}) ` : "";
+      try {
+        await uploadMediaOne(color, files[i], prefix);
+      } catch (e) {
+        failed += 1;
+        setMediaBusy(
+          color,
+          false,
+          `${prefix}${e instanceof Error ? e.message : "Upload failed"}`,
+        );
+      }
+    }
+    if (failed === 0) setMediaBusy(color, false, "");
+    else if (files.length > 1)
+      setMediaBusy(color, false, `${failed} of ${files.length} upload(s) failed`);
+  }
+
+  /** Reference an existing product media item into a color's gallery set. */
+  async function addFromProduct(color: string, item: ProductMediaItem) {
+    if (!data) return;
+    try {
+      const res = await fetch("/api/media/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          productId: data.product.id,
+          color,
+          mode: "product_media",
+          mediaId: item.id,
+          mediaType: item.type,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Add failed");
+      setData((prev) => (prev ? { ...prev, mediaMap: json.mediaMap } : prev));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Add failed");
+    }
+  }
+
+  async function removeMedia(color: string, id: string) {
+    if (!data) return;
+    try {
+      const res = await fetch("/api/media/remove", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ productId: data.product.id, color, entryId: id }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Remove failed");
+      setData((prev) => (prev ? { ...prev, mediaMap: json.mediaMap } : prev));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Remove failed");
+    }
+  }
+
+  async function reorderMedia(color: string, order: string[]) {
+    if (!data) return;
+    setData((prev) => {
+      if (!prev) return prev;
+      const map: ColorMediaMap = JSON.parse(JSON.stringify(prev.mediaMap));
+      const entry = map.colors[color];
+      if (entry) {
+        const byId = new Map(entry.media.map((m) => [mediaEntryId(m), m]));
+        entry.media = order
+          .map((id) => byId.get(id))
+          .filter((m): m is MediaEntry => Boolean(m));
+      }
+      return { ...prev, mediaMap: map };
+    });
+    try {
+      const res = await fetch("/api/media/reorder", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ productId: data.product.id, color, order }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Reorder failed");
+      setData((prev) => (prev ? { ...prev, mediaMap: json.mediaMap } : prev));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Reorder failed");
+    }
+  }
+
   async function refreshStatus() {
     if (!data) return;
     setRefreshing(true);
     try {
-      const res = await fetch("/api/videos/refresh", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ productId: data.product.id }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Refresh failed");
-      setData((prev) => (prev ? { ...prev, videoMap: json.videoMap } : prev));
+      const [videoRes, mediaRes] = await Promise.all([
+        fetch("/api/videos/refresh", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ productId: data.product.id }),
+        }),
+        fetch("/api/media/refresh", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ productId: data.product.id }),
+        }),
+      ]);
+      const videoJson = await videoRes.json();
+      const mediaJson = await mediaRes.json();
+      if (!videoRes.ok) throw new Error(videoJson.error || "Refresh failed");
+      if (!mediaRes.ok) throw new Error(mediaJson.error || "Refresh failed");
+      setData((prev) =>
+        prev
+          ? { ...prev, videoMap: videoJson.videoMap, mediaMap: mediaJson.mediaMap }
+          : prev,
+      );
     } catch (e) {
       setError(e instanceof Error ? e.message : "Refresh failed");
     } finally {
@@ -253,16 +454,27 @@ export default function ConfigTool() {
 
   // A video is still "pending" while it transcodes (anything that is not yet a
   // playable READY entry), but FAILED is terminal — it never becomes ready, so
-  // it must not keep the refresh button / auto-poll alive forever.
+  // it must not keep the refresh button / auto-poll alive forever. Uploaded
+  // gallery media follows the same rule; product-media refs carry no status.
   const hasPending = Boolean(
     data &&
-      Object.values(data.videoMap.colors).some((c) =>
+      (Object.values(data.videoMap.colors).some((c) =>
         c.videos.some(
           (v) =>
             v.status !== "FAILED" &&
             (v.status !== "READY" || !v.url || !v.poster),
         ),
-      ),
+      ) ||
+        Object.values(data.mediaMap.colors).some((c) =>
+          c.media.some(
+            (m) =>
+              m.kind === "upload" &&
+              m.status !== "FAILED" &&
+              (m.status !== "READY" ||
+                !m.url ||
+                (m.type === "image" && !m.width)),
+          ),
+        )),
   );
 
   // Auto-poll Shopify for transcoding status while anything is still pending,
@@ -410,22 +622,44 @@ export default function ConfigTool() {
 
               <div className="colors">
                 {data.colors.map((color) => (
-                  <VideoSection
-                    key={color.publicTitle}
-                    title={color.publicTitle}
-                    imageSrc={color.imageSrc}
-                    videos={
-                      data.videoMap.colors[color.publicTitle]?.videos ?? []
-                    }
-                    state={upload[color.publicTitle]}
-                    onPick={(files) => uploadVideos(color, files)}
-                    onRemove={(fileId) =>
-                      removeVideo(color.publicTitle, fileId)
-                    }
-                    onReorder={(order) =>
-                      reorderVideos(color.publicTitle, order)
-                    }
-                  />
+                  <div className="color-row" key={color.publicTitle}>
+                    <div className="color-head">
+                      {color.imageSrc ? (
+                        // eslint-disable-next-line @next/js/next/no-img-element
+                        <img src={color.imageSrc} alt="" className="thumb" />
+                      ) : (
+                        <span className="thumb placeholder" />
+                      )}
+                      <strong>{color.publicTitle}</strong>
+                    </div>
+                    <MediaSection
+                      color={color.publicTitle}
+                      media={data.mediaMap.colors[color.publicTitle]?.media ?? []}
+                      state={mediaUpload[color.publicTitle]}
+                      productMedia={productMedia}
+                      onPick={(files) => uploadMedia(color.publicTitle, files)}
+                      onAddFromProduct={(item) =>
+                        addFromProduct(color.publicTitle, item)
+                      }
+                      onRemove={(id) => removeMedia(color.publicTitle, id)}
+                      onReorder={(order) => reorderMedia(color.publicTitle, order)}
+                    />
+                    <VideoSection
+                      title="Real Case Show videos"
+                      imageSrc={null}
+                      videos={
+                        data.videoMap.colors[color.publicTitle]?.videos ?? []
+                      }
+                      state={upload[color.publicTitle]}
+                      onPick={(files) => uploadVideos(color, files)}
+                      onRemove={(fileId) =>
+                        removeVideo(color.publicTitle, fileId)
+                      }
+                      onReorder={(order) =>
+                        reorderVideos(color.publicTitle, order)
+                      }
+                    />
+                  </div>
                 ))}
               </div>
             </>
@@ -468,10 +702,10 @@ function VideoSection({
   }
 
   return (
-    <div className="color-row">
-      <div className="color-head">
+    <div className="color-sub">
+      <div className="sub-head">
         {imageSrc ? (
-          // eslint-disable-next-line @next/next/no-img-element
+          // eslint-disable-next-line @next/js/next/no-img-element
           <img src={imageSrc} alt="" className="thumb" />
         ) : (
           <span className="thumb placeholder" />
@@ -538,13 +772,178 @@ function statusClass(status: string): string {
   return "pending";
 }
 
+/** Resolve the thumbnail for a media entry (uploads carry their own url,
+ * product-media refs are looked up in the live product media list). */
+function mediaThumbUrl(m: MediaEntry, productMedia: ProductMediaItem[]): string | null {
+  if (m.kind === "upload") return m.type === "image" ? m.url : m.poster ?? null;
+  return productMedia.find((p) => p.id === m.mediaId)?.previewUrl ?? null;
+}
+
+function mediaLabel(m: MediaEntry, productMedia: ProductMediaItem[]): string {
+  if (m.kind === "upload") return m.filename;
+  const item = productMedia.find((p) => p.id === m.mediaId);
+  return item?.alt || `Product ${m.type}`;
+}
+
+function MediaSection({
+  color,
+  media,
+  state,
+  productMedia,
+  onPick,
+  onAddFromProduct,
+  onRemove,
+  onReorder,
+}: {
+  color: string;
+  media: MediaEntry[];
+  state?: { busy: boolean; message: string };
+  productMedia: ProductMediaItem[];
+  onPick: (files: File[]) => void;
+  onAddFromProduct: (item: ProductMediaItem) => void;
+  onRemove: (id: string) => void;
+  onReorder: (order: string[]) => void;
+}) {
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const draggable = media.length > 1;
+  const inColor = new Set(
+    media.filter((m) => m.kind === "product_media").map((m) => m.mediaId),
+  );
+  // The picker only offers what the theme overlay can render.
+  const pickable = productMedia.filter(
+    (p) => p.type === "image" || (p.type === "video" && p.status === "READY"),
+  );
+
+  function handleDrop(targetId: string) {
+    if (!dragId || dragId === targetId) return;
+    const ids = media.map(mediaEntryId);
+    const from = ids.indexOf(dragId);
+    const to = ids.indexOf(targetId);
+    if (from < 0 || to < 0) return;
+    ids.splice(to, 0, ids.splice(from, 1)[0]);
+    onReorder(ids);
+    setDragId(null);
+  }
+
+  return (
+    <div className="color-sub" data-color={color}>
+      <div className="sub-head">
+        <strong>Gallery media</strong>
+        <span className={"badge " + (media.length ? "ok" : "empty")}>
+          {media.length ? `${media.length} item(s)` : "Product default"}
+        </span>
+      </div>
+      <p className="muted small">
+        Shown in the main image area when this color is selected; an unset
+        color falls back to the product&rsquo;s own media.
+      </p>
+
+      {media.length > 0 && (
+        <ul className="video-list">
+          {media.map((m) => {
+            const thumb = mediaThumbUrl(m, productMedia);
+            return (
+              <li
+                key={mediaEntryId(m)}
+                draggable={draggable}
+                onDragStart={() => setDragId(mediaEntryId(m))}
+                onDragOver={(e) => draggable && e.preventDefault()}
+                onDrop={() => handleDrop(mediaEntryId(m))}
+                onDragEnd={() => setDragId(null)}
+                className={dragId === mediaEntryId(m) ? "dragging" : ""}
+              >
+                {draggable && (
+                  <span className="drag-handle" aria-hidden title="Drag to reorder">
+                    ⠿
+                  </span>
+                )}
+                {thumb ? (
+                  // eslint-disable-next-line @next/js/next/no-img-element
+                  <img src={thumb} alt="" className="thumb" />
+                ) : (
+                  <span className="thumb placeholder" />
+                )}
+                <span className="badge">
+                  {m.kind === "product_media" ? `product ${m.type}` : m.type}
+                </span>
+                {m.kind === "upload" && (
+                  <span className={"badge " + statusClass(m.status)}>{m.status}</span>
+                )}
+                <span>
+                  {m.kind === "upload" && m.url ? (
+                    <a href={m.url} target="_blank" rel="noreferrer">
+                      {m.filename}
+                    </a>
+                  ) : (
+                    mediaLabel(m, productMedia)
+                  )}
+                </span>
+                <button
+                  className="link danger"
+                  onClick={() => onRemove(mediaEntryId(m))}
+                >
+                  Remove
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      <div className="media-actions">
+        <UploadControl
+          busy={state?.busy ?? false}
+          message={state?.message ?? ""}
+          accept="image/*,video/*"
+          onPick={onPick}
+        />
+        <button className="link" onClick={() => setPickerOpen((o) => !o)}>
+          {pickerOpen ? "Close product media" : "Add from product media…"}
+        </button>
+      </div>
+
+      {pickerOpen && (
+        <div className="media-picker">
+          {pickable.length === 0 && (
+            <p className="muted small">No usable product media found.</p>
+          )}
+          {pickable.map((p) => {
+            const added = inColor.has(p.id);
+            return (
+              <button
+                key={p.id}
+                className={"media-tile" + (added ? " added" : "")}
+                disabled={added}
+                onClick={() => onAddFromProduct(p)}
+                title={p.alt || p.type}
+              >
+                {p.previewUrl ? (
+                  // eslint-disable-next-line @next/js/next/no-img-element
+                  <img src={p.previewUrl} alt="" />
+                ) : (
+                  <span className="thumb placeholder" />
+                )}
+                <span className="badge">{p.type}</span>
+                <span className="muted small">{added ? "Added" : "Add"}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function UploadControl({
   busy,
   message,
+  accept = "video/*",
   onPick,
 }: {
   busy: boolean;
   message: string;
+  accept?: string;
   onPick: (files: File[]) => void;
 }) {
   const ref = useRef<HTMLInputElement>(null);
@@ -553,7 +952,7 @@ function UploadControl({
       <input
         ref={ref}
         type="file"
-        accept="video/*"
+        accept={accept}
         multiple
         disabled={busy}
         onChange={(e) => {

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { adminGraphql } from "@/lib/shopify";
 import { getSwatchColors } from "@/lib/free-swatch";
 import { readColorVideoMap } from "@/lib/video";
+import { readColorMediaMap } from "@/lib/media";
 import { guard } from "@/lib/api-auth";
 
 export const runtime = "nodejs";
@@ -47,7 +48,10 @@ export async function GET(req: Request) {
       handle: product.handle,
       onlineStoreUrl: product.onlineStoreUrl ?? null,
     });
-    const videoMap = await readColorVideoMap(product.id);
+    const [videoMap, mediaMap] = await Promise.all([
+      readColorVideoMap(product.id),
+      readColorMediaMap(product.id),
+    ]);
 
     return NextResponse.json({
       product: {
@@ -60,6 +64,7 @@ export async function GET(req: Request) {
       swatchSource: swatch.source,
       swatchNote: swatch.note ?? null,
       videoMap,
+      mediaMap,
     });
   } catch (error) {
     return NextResponse.json(

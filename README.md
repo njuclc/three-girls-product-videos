@@ -3,7 +3,7 @@
 An internal tool (Next.js, deployable on Vercel) for configuring the demo video
 that plays when a shopper clicks each fabric color on a Shopify product.
 
-It does three things:
+It does four things:
 
 1. **Search products** in your Shopify store.
 2. **Show a product's fabric colors** — parsed from the storefront product page
@@ -12,6 +12,11 @@ It does three things:
    stores).
 3. **Upload a video per color** to Shopify Files and save the result into the
    product's `custom.color_videos` JSON metafield.
+4. **Configure a per-color gallery media set** (images + videos, upload or
+   reference existing product media) saved into the product's
+   `custom.color_media` JSON metafield. The theme swaps the PDP main image
+   area to this set when the color is selected; colors with no set fall back
+   to the product's own media. See `docs/color-media-metafield.md`.
 
 Unlike a Shopify embedded app, this needs **no Partner app, no OAuth and no
 tunnel** — it talks to the Admin API with a custom-app access token.
